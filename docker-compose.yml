@@ -1,0 +1,69 @@
+
+services:
+  master:
+    # build: # Already built image, no need to build again
+    #   context: .
+    #   dockerfile: Dockerfile.master
+    image: master
+    container_name: master
+    hostname: master
+    networks:
+      - hadoop_network_2
+    # volumes:
+    #   - hadoop_data_master_temp:/opt/hadoop  # Separate volume for master
+    ports:
+      - "9870:9870"   # NameNode UI
+      - "8088:8088"   # ResourceManager UI
+      - "9000:9000"   # HDFS
+      - "18080:18080" # Spark History UI
+    command: ["/bin/bash", "-c", "service ssh start && /entrypoint.sh && tail -f /dev/null"]
+    environment:
+      - SPARK_HISTORY_OPTS=-Dspark.history.ui.port=18080 -Dspark.history.ui.bindAddress=0.0.0.0 # for Spark History Server UI
+
+  slave1:
+    # build: # Already built image, no need to build again
+    #   context: .
+    #   dockerfile: Dockerfile.slave
+    image: slave
+    container_name: slave1
+    hostname: slave1
+    networks:
+      - hadoop_network_2
+    # volumes:
+      # - hadoop_data_slave1_temp:/opt/hadoop  # Separate volume for slave1
+    command: ["/bin/bash", "-c", "service ssh start && /opt/hadoop/sbin/hadoop-daemon.sh start datanode && /opt/hadoop/bin/yarn nodemanager && tail -f /dev/null"]
+
+  slave2:
+    image: slave
+    container_name: slave2
+    hostname: slave2
+    networks:
+      - hadoop_network_2
+    # volumes:
+    #   - hadoop_data_slave2_temp:/opt/hadoop  # Separate volume for slave2
+    command: ["/bin/bash", "-c", "service ssh start && /opt/hadoop/sbin/hadoop-daemon.sh start datanode && /opt/hadoop/bin/yarn nodemanager && tail -f /dev/null"]
+
+  slave3:
+    image: slave
+    container_name: slave3
+    hostname: slave3
+    networks:
+      - hadoop_network_2
+    # volumes:
+    #   - hadoop_data_slave3_temp:/opt/hadoop  # Separate volume for slave3
+    command: ["/bin/bash", "-c", "service ssh start && /opt/hadoop/sbin/hadoop-daemon.sh start datanode && /opt/hadoop/bin/yarn nodemanager && tail -f /dev/null"]
+
+
+networks:
+  hadoop_network_2:
+
+volumes:
+  hadoop_data_master_temp:
+    driver: local
+  hadoop_data_slave1_temp:
+    driver: local
+  hadoop_data_slave2_temp:
+    driver: local
+  hadoop_data_slave3_temp:
+    driver: local
+  

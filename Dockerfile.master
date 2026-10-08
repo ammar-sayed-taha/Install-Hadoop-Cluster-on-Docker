@@ -1,0 +1,78 @@
+# Base image
+FROM ubuntu:20.04
+
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    openjdk-8-jdk openjdk-17-jdk openjdk-17-jre wget ssh rsync openssh-server && \
+    apt-get clean
+
+# Set Java environment variable
+ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+# ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH=$JAVA_HOME/bin:$PATH
+
+# Copy pre-downloaded Hadoop archive and extract it
+COPY hadoop-3.3.6.tar.gz /opt/
+RUN tar -xz -C /opt/ -f /opt/hadoop-3.3.6.tar.gz && \
+    ln -s /opt/hadoop-3.3.6 /opt/hadoop && \
+    rm /opt/hadoop-3.3.6.tar.gz  # Remove the archive to save space
+
+# Set Hadoop environment variables
+ENV HADOOP_HOME=/opt/hadoop
+ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+ENV PATH=$HADOOP_HOME/bin:$HADOOP_HOME/sbin:$PATH
+
+# Create Hadoop user and set permissions
+RUN groupadd -r hadoop && groupadd -r hdfs && \
+    useradd -m -s /bin/bash -g hadoop -G hdfs hdfs && \
+    echo "hdfs:hdfs" | chpasswd && \
+    mkdir -p /home/hdfs/hadoop_data $HADOOP_HOME/hdfs/namenode $HADOOP_HOME/hdfs/datanode && \
+    chown -R hdfs:hadoop /home/hdfs $HADOOP_HOME/hdfs
+
+# Ensure /run/sshd exists and has correct permissions
+RUN mkdir -p /run/sshd && chmod 755 /run/sshd
+
+# Configure Hadoop to find Java
+RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh && \
+    echo "export PATH=$JAVA_HOME/bin:$PATH" >> /etc/profile && \
+    echo "export JAVA_HOME=$JAVA_HOME" >> /root/.bashrc
+
+# Copy Hadoop configuration files
+COPY core-site.xml hdfs-site.xml mapred-site.xml yarn-site.xml $HADOOP_CONF_DIR/
+RUN chown -R hdfs:hadoop $HADOOP_CONF_DIR
+
+# Install R and required libraries
+RUN apt-get update && apt-get install -y r-base r-cran-ggplot2
+
+# Copy and set permissions for entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chown root:root /entrypoint.sh
+
+# Set up SSH for passwordless login
+USER hdfs
+RUN ssh-keygen -t rsa -f /home/hdfs/.ssh/id_rsa -q -N "" && \
+    cat /home/hdfs/.ssh/id_rsa.pub >> /home/hdfs/.ssh/authorized_keys && \
+    chmod 600 /home/hdfs/.ssh/id_rsa /home/hdfs/.ssh/authorized_keys && \
+    chmod 700 /home/hdfs/.ssh && \
+    echo "StrictHostKeyChecking no" >> /home/hdfs/.ssh/config && \
+    chmod 600 /home/hdfs/.ssh/config && \
+    chown -R hdfs:hadoop /home/hdfs/.ssh
+
+# Set Hadoop user environment variables
+ENV HDFS_NAMENODE_USER=hdfs \
+    HDFS_DATANODE_USER=hdfs \
+    HDFS_SECONDARYNAMENODE_USER=hdfs
+
+RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_CONF_DIR/hadoop-env.sh
+
+
+# Overwrite the Workers file to the Master node's configuration
+COPY workers $HADOOP_CONF_DIR/workers
+
+
+# Switch back to root for starting services
+USER root
+
+# Start SSH and Hadoop
+CMD ["/entrypoint.sh"]

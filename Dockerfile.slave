@@ -1,0 +1,21 @@
+# Base image (from master)
+FROM master:latest
+
+USER root
+
+# Copy Hadoop configuration files for slave nodes (Overwrite the existing one)
+COPY yarn-site-slaves.xml $HADOOP_CONF_DIR/yarn-site.xml
+
+# Debug step: List the folder to confirm the file exists
+RUN ls -la /$HADOOP_CONF_DIR/yarn-site.xml
+
+# Start SSH and required services
+CMD ["/bin/bash", "-c", "service ssh start && \
+    /opt/hadoop/sbin/hadoop-daemon.sh start datanode && \
+    /opt/hadoop/bin/yarn --daemon start nodemanager && \
+    tail -f /dev/null"]
+
+
+
+
+

@@ -1,0 +1,67 @@
+<configuration>
+    <!-- ResourceManager hostname -->
+    <property>
+        <name>yarn.resourcemanager.hostname</name>
+        <value>master</value>
+    </property>
+
+    <!-- ResourceManager address -->
+    <property>
+        <name>yarn.resourcemanager.address</name>
+        <value>master:8032</value>
+    </property>
+
+    <!-- ResourceManager Scheduler address -->
+    <property>
+        <name>yarn.resourcemanager.scheduler.address</name>
+        <value>master:8030</value>
+    </property>
+
+    <!-- NodeManagers should talk to this -->
+    <property>
+        <name>yarn.resourcemanager.resource-tracker.address</name>
+        <value>master:8031</value>
+    </property>
+
+    <!-- NodeManagers register here -->
+    <property>
+        <name>yarn.resourcemanager.admin.address</name>
+        <value>master:8033</value>
+    </property>
+
+    <!-- Services required for running MapReduce jobs -->
+    <property>
+        <name>yarn.nodemanager.aux-services</name>
+        <value>mapreduce_shuffle</value>
+    </property>
+
+    <!-- Enable shuffle service for MapReduce -->
+    <property>
+        <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+        <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+    </property>
+
+    <!-- Memory allocated for NodeManager -->
+    <property>
+        <name>yarn.nodemanager.resource.memory-mb</name>
+        <value>8192</value>
+    </property>
+
+    <!-- CPU cores allocated for NodeManager -->
+    <property>
+        <name>yarn.nodemanager.resource.cpu-vcores</name>
+        <value>8</value>
+    </property>
+
+    <!-- Where logs are stored -->
+    <property>
+        <name>yarn.nodemanager.log-dirs</name>
+        <value>/var/log/hadoop-yarn</value>
+    </property>
+
+    <!-- Container logs -->
+    <property>
+        <name>yarn.nodemanager.remote-app-log-dir</name>
+        <value>/var/log/hadoop-yarn/apps</value>
+    </property>
+</configuration>
