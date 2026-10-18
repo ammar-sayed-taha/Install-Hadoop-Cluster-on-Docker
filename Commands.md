@@ -98,6 +98,11 @@ docker exec -it <container_name> /bin/bash
 `##########################################################################`
 `####################            HIVE SCRIPT           ####################`
 `##########################################################################`
+*NOTE:* Before every restart to the Hive Script Run this Command first: 
+```bash
+  docker exec hive-server rm -f /opt/hive/conf/hiveserver2.pid
+  docker restart hive-server
+```
 # STEPS TO CREATE HIVE CONTAINER AND CONNECT TO HADOOP CLUSTER 
 1. ### Create Hive Container and make it shared in the same hadoop_cluster Network
 <!-- docker run -d --name hive-server `
@@ -110,7 +115,8 @@ docker run -d `
   --label "com.docker.compose.project=hadoop_cluster" `
   --env SERVICE_NAME=hiveserver2 `
   -p 10000:10000 -p 10002:10002 `
-  apache/hive:4.2.1
+  -e HADOOP_CONF_DIR=/opt/hive/conf -e HIVE_CONF_DIR=/opt/hive/conf -e TEZ_CONF_DIR=/opt/hive/conf `
+  apache/hive:4.0.1
 
 
 NOTE:
@@ -122,20 +128,49 @@ NOTE:
 
 2. ## Copy Hadoop Configuration Files to Hive 
 <!-- Hive needs to know where your Hadoop Master (NameNode) is. You must copy the configuration files from your running Hadoop Master container to your Hive container. -->
-docker cp ./core-site.xml hive-server:/opt/hive/conf/ 
+<!-- docker cp ./core-site.xml hive-server:/opt/hive/conf/ 
 docker cp ./hdfs-site.xml hive-server:/opt/hive/conf/
 docker cp ./hive-site.xml hive-server:/opt/hive/conf/
+docker cp ./tez-site.xml hive-server:/opt/hive/conf/
 docker cp ./yarn-site.xml hive-server:/opt/hive/conf/
-docker cp ./mapred-site.xml hive-server:/opt/hive/conf/
+docker cp ./mapred-site.xml hive-server:/opt/hive/conf/ -->
+```bash
+$files = @(
+    "core-site.xml",
+    "hdfs-site.xml",
+    "hive-site.xml",
+    "tez-site.xml",
+    "yarn-site.xml",
+    "mapred-site.xml"
+)
+
+foreach ($file in $files) {
+    docker cp "./$file" "hive-server:/opt/hive/conf/"
+}
+```
 
 3. ## Create HDFS Warehouse direcoty in 🔴Master Container🔴
 docker exec -it master /bin/bash
 
-hdfs dfs -mkdir -p /user/hive/data/warehouse <!-- If -p failed, then -mkdir folder by folder -->
-hdfs dfs -mkdir -p /tmp
-hdfs dfs -chmod g+w /user/hive/data/warehouse
-hdfs dfs -chmod g+w /tmp
+<!-- Create Warehouse for the Databases/Tables of hive on HDFS -->
+hdfs dfs -mkdir -p /user/hive/warehouse <!-- If -p failed, then -mkdir folder by folder -->
+hdfs dfs -mkdir -p /user/hive/external
+hdfs dfs -mkdir -p /tmp/hive
+hdfs dfs -chmod -R 777 /user/hive
+hdfs dfs -chmod -R 777 /tmp/hive
 
+
+<!-- Give the directories Full Access by Hive user -->
+hdfs dfs -chown -R hive:hadoop_cluster /user/hive
+
+<!-- Copy the file from local to hive-server container -->
+docker cp .\apache-tez-0.10.4-bin.tar.gz master:/opt/
+tar xzf apache-tez-0.10.4-bin.tar.gz  <!-- /opt/apache-tez-0.10.4-bin/share/tez.tar.gz -->
+
+<!-- Upload the file to HDFS through master Node -->
+hdfs dfs -mkdir /apps
+hdfs dfs -put /opt/apache-tez-0.10.4-bin/share/tez.tar.gz /apps/
+hdfs dfs -chmod -R 777 /apps
 
 4. ## Configure the Hive Metastore (Inside Hive Container)
 docker exec -it hive-server bash
@@ -146,15 +181,9 @@ docker exec -it hive-server bash
 <!-- Before starting Hive for the first time, you must initialize its metadata store (Derby is used by default for testing: -->
 schematool -dbType derby -initSchema --verbose
 
-NOTE: if the command above Failed, then you need to remove the log files of hive_metastore and try again.
+*NOTE*: if the command above Failed, then you need to remove the log files of hive_metastore and try again.
 rm -rf /opt/hive/metastore_db
 rm -f /opt/hive/derby.log
-
-5. ## Give the hive user the permissions to read/write on warehouse directory (🔴 Master Node 🔴)
-hdfs dfs -chown -R hive:hadoop_cluster /user/hive
-hdfs dfs -chmod -R 775 /user/hive
-hdfs dfs -chmod 777 /tmp
-
 
 6. ## Start the Metastore Service (Run HiveQL Queries)
 /opt/hive/bin/beeline -u "jdbc:hive2://localhost:10000"

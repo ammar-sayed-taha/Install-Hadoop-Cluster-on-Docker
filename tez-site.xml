@@ -1,0 +1,15 @@
+<configuration>
+    <!-- Path to Tez library + classpath + Other Configurations -->
+    <property>
+        <name>tez.lib.uris</name>
+        <value>hdfs://master:9000/apps/tez.tar.gz</value>
+    </property>
+    <property>
+        <name>tez.lib.uris.classpath</name>
+        <value>./tezlib/*,./tezlib/lib/*</value>
+    </property>
+    <property>
+        <name>tez.use.cluster.hadoop-libs</name>
+        <value>false</value>
+    </property>
+</configuration>

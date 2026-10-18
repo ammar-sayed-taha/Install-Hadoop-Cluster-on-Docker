@@ -4,4 +4,37 @@
         <name>hive.metastore.warehouse.dir</name>
         <value>hdfs://master:9000/user/hive/warehouse</value>
     </property>
+    <property>
+        <name>hive.execution.engine</name>
+        <value>tez</value>
+    </property>
+    <property>
+        <name>hive.tez.container.size</name>
+        <value>1024</value>
+    </property>
+    <!-- ResourceManager hostname -->
+    <property>
+        <name>yarn.resourcemanager.hostname</name>
+        <value>master</value>
+    </property>
+    <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://master:9000</value>
+    </property>
+    <property>
+        <name>hive.exec.scratchdir</name>
+        <value>hdfs://master:9000/tmp/hive</value>
+    </property>
+    <property>
+        <name>metastore.warehouse.external.dir</name>
+        <value>hdfs://master:9000/user/hive/external</value>
+    </property>
+    <property>
+        <name>hive.support.concurrency</name>
+        <value>true</value>
+    </property>
+    <property>
+        <name>hive.txn.manager</name>
+        <value>org.apache.hadoop.hive.ql.lockmgr.DbTxnManager</value>
+    </property>
 </configuration>
