@@ -157,7 +157,7 @@ hdfs dfs -mkdir -p /user/hive/warehouse <!-- If -p failed, then -mkdir folder by
 hdfs dfs -mkdir -p /user/hive/external
 hdfs dfs -mkdir -p /tmp/hive
 hdfs dfs -chmod -R 777 /user/hive
-hdfs dfs -chmod -R 777 /tmp/hive
+hdfs dfs -chmod -R 777 /tmp
 
 
 <!-- Give the directories Full Access by Hive user -->
@@ -165,7 +165,7 @@ hdfs dfs -chown -R hive:hadoop_cluster /user/hive
 
 <!-- Copy the file from local to hive-server container -->
 docker cp .\apache-tez-0.10.4-bin.tar.gz master:/opt/
-tar xzf apache-tez-0.10.4-bin.tar.gz  <!-- /opt/apache-tez-0.10.4-bin/share/tez.tar.gz -->
+tar xzf apache-tez-0.10.4-bin.tar.gz 
 
 <!-- Upload the file to HDFS through master Node -->
 hdfs dfs -mkdir /apps
