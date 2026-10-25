@@ -229,23 +229,35 @@ tar -xvf spark-3.2.1-bin-hadoop3.2.tgz -C /opt/
 mv /opt/spark-3.2.1-bin-hadoop3.2 /opt/spark
 
 
-# Step 2: Configure Environment Variables (⚠️ All Nodes ⚠️)
+# Step 2: Configure Environment Variables (🔴 All Nodes 🔴)
+1. Install pip + pyspark Module to run pyspark jobs using Python
+apt-get update
+apt-get install -y python3-pip <!--Install python3 if not installed-->
+pip install pyspark==3.2.1 --force-reinstall
+
+2. Add Spark_Home configs
 <!-- Spark needs to know where Hadoop and its configurations live. Add these lines to /etc/profile, ~/.bashrc, or your existing Hadoop environment script on all nodes (master and slaves): -->
-export SPARK_HOME=/opt/spark <!--Global Env-->
+<!--Global Env-->
+export SPARK_HOME=/opt/spark 
 echo "export SPARK_HOME=/opt/spark" >> /etc/profile && \
 echo "export SPARK_HOME=/opt/spark" >> ~/.bashrc
 
 echo "export PATH=$PATH:$SPARK_HOME/bin:$SPARK_HOME/sbin" >> /etc/profile && \
 echo "export PATH=$PATH:$SPARK_HOME/bin:$SPARK_HOME/sbin" >> ~/.bashrc
+echo "export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-*.zip"  >> ~/.bashrc
 
 <!-- *NOTE:* If got Permission error for /etc/profile, then use `root` user and give it write access
 chmod 777 -R /etc
 chmod 777 -R /root -->
 
+3. Save the Changes
 <!-- Run source ~/.bashrc (or your respective file) to apply changes immediately. -->
 source ~/.bashrc
 
-*Check Spark Version* <!--Works for Master Node only for now-->
+
+
+
+*Check Spark Version* <!--⚠️ Works for Master Node only for now-->
 spark-submit --version
 
 
@@ -261,7 +273,7 @@ export HADOOP_CONF_DIR=/opt/hadoop/etc/hadoop      # Adjust to your actual Hadoo
 export YARN_CONF_DIR=/opt/hadoop/etc/hadoop        # Adjust to your actual YARN config path
 
 
-# 3. Step 4: Configure Spark Defaults (spark-defaults.conf) - YARN Mode
+# 3. Step 4: Configure Spark Defaults (`spark-defaults.conf`) - YARN Mode
 1. Copy the Default Conf file
 cd /opt/spark/conf
 cp spark-defaults.conf.template spark-defaults.conf
@@ -278,7 +290,7 @@ spark.eventLog.dir               hdfs://master:9000/spark-history
 
 
 # Step 5: Sync Spark to All Slave Containers
-<!-- Since Spark on YARN requires the Spark binaries/configurations to be present on the worker nodes if running in certain deployment modes, copy the configured directory from master to your slave containers. -->
+<!-- Since Spark on YARN requires the Spark binaries/configurations to be present on all the worker nodes if running in certain deployment modes, copy the configured directory from master to your slave containers. -->
 
 *Copy the Spark Directory to all Slaves*
 
@@ -331,7 +343,7 @@ spark-submit \
 chown -R hdfs:hdfs /opt/spark
 
 `Make sure permissions allow hdfs to read, write, and execute`
-chmod -R 755 /opt/spark
+chmod -R 777 /opt/spark
 
 
 
