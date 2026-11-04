@@ -116,10 +116,12 @@ docker run -d `
   --env SERVICE_NAME=hiveserver2 `
   -p 10000:10000 -p 10002:10002 `
   -e HADOOP_CONF_DIR=/opt/hive/conf -e HIVE_CONF_DIR=/opt/hive/conf -e TEZ_CONF_DIR=/opt/hive/conf `
-  apache/hive:4.0.1
+  --entrypoint /bin/bash `
+  apache/hive:4.0.1 `
+  -c 'rm -f /opt/hive/conf/hiveserver2.pid && exec /entrypoint.sh'
 
 
-NOTE:
+*NOTE:*
 1.  hadoop_cluster_hadoop_network_2 <!-- is <Network Name>, you can get it from command [docker network ls]-->
 2. apache/hive:tag <!-- apache/hive -> <image_name> -->
 3. --label <!-- OPTIONAL: Hadoop group to make the container under it with other hadoop containers -->
@@ -128,12 +130,6 @@ NOTE:
 
 2. ## Copy Hadoop Configuration Files to Hive 
 <!-- Hive needs to know where your Hadoop Master (NameNode) is. You must copy the configuration files from your running Hadoop Master container to your Hive container. -->
-<!-- docker cp ./core-site.xml hive-server:/opt/hive/conf/ 
-docker cp ./hdfs-site.xml hive-server:/opt/hive/conf/
-docker cp ./hive-site.xml hive-server:/opt/hive/conf/
-docker cp ./tez-site.xml hive-server:/opt/hive/conf/
-docker cp ./yarn-site.xml hive-server:/opt/hive/conf/
-docker cp ./mapred-site.xml hive-server:/opt/hive/conf/ -->
 ```bash
 $files = @(
     "core-site.xml",
@@ -177,8 +173,8 @@ docker exec -it hive-server bash
 <!-- docker exec -it hive-server beeline -u "jdbc:hive2://localhost:10000"  -->
 
 
-5. ##  Initialize the Schema and Run
-<!-- Before starting Hive for the first time, you must initialize its metadata store (Derby is used by default for testing: -->
+5. ##  Initialize the Schema and Run (`Optional`)
+<!-- In case you cannot connect to beeline sheel then, you should initialize its metadata store (Derby is used by default for testing: -->
 schematool -dbType derby -initSchema --verbose
 
 *NOTE*: if the command above Failed, then you need to remove the log files of hive_metastore and try again.
@@ -253,8 +249,6 @@ chmod 777 -R /root -->
 3. Save the Changes
 <!-- Run source ~/.bashrc (or your respective file) to apply changes immediately. -->
 source ~/.bashrc
-
-
 
 
 *Check Spark Version* <!--⚠️ Works for Master Node only for now-->
@@ -382,14 +376,56 @@ curl.exe -I http://localhost:18080
 ```
 *NOTE:* It should return something like this `HTTP/1.1 200 OK`
 
+<!-- ---------------------------------------------- -->
+## How to Connect Spark to Hive Databases? ⚠️
+<!-- ---------------------------------------------- -->
+<!-- To Connect to hive tables through pyspark code, you need to prepare the configs first: -->
+1. Download compitable hive version to work with spark:3.2.1
+```bash
+  docker run -d `
+  --name hive-server-v3 `
+  --network hadoop_cluster_hadoop_network_2 `
+  --label "com.docker.compose.project=hadoop_cluster" `
+  --env SERVICE_NAME=hiveserver2 `
+  -p 10000:10000 -p 10002:10002 `
+  -e HADOOP_CONF_DIR=/opt/hive/conf -e HIVE_CONF_DIR=/opt/hive/conf -e TEZ_CONF_DIR=/opt/hive/conf `
+  apache/hive:3.1.3
+```
 
+1. Copy *-site.xml files to Spark conf directory
+```bash
+$files = @(
+    "core-site.xml",
+    "hdfs-site.xml",
+    "hive-site.xml",
+)
+foreach ($file in $files) {
+    docker cp "./$file" "master:/opt/spark/conf/"
+}
+```
 
-
+2. 
 
 
 `##########################################################################`
 `##################             KAFKA SCRIPT            ###################`
 `##########################################################################`
+To Run *Kafka Python* Script on `Master + Slaves`, follow these steps
+<!-- 1. Run *docker-compose.yml* of Kafka Container -->
+
+2. Install Python libraries on *Master + Slaves* to run python scripts: 
+
+```bash
+  # Update and Install kafka libraries on Ubuntu wheels
+  apt-get update
+  apt-get install -y librdkafka-dev python3-dev build-essential
+
+  # Install Kafka Module on python
+  pip install --upgrade pip setuptools wheel
+  pip install confluent_kafka
+```
+
+
 *NOTE:* Newer versions of Apache Kafka (V4.x) utilize KRaft (Kafka Raft metadata mode), completely removing the dependency on an external ZooKeeper cluster
 # HOW TO DO IT? 
 In the 1-master, 3-slave Hadoop topology, the standard way to architect this without ZooKeeper is to assign roles based on our nodes
@@ -403,34 +439,48 @@ In the 1-master, 3-slave Hadoop topology, the standard way to architect this wit
   tar -xvzf kafka_2.13-4.2.2.tgz
   mv kafka_2.13-4.2.2 kafka
   mkdir -p /var/log/kafka-logs
-  chown -R hdfs:hdfs /opt/kafka /var/log/kafka-logs
+  chown -R hdfs:hdfs /opt/kafka /var/log/kafka-logs <!--User hdfs has onwership for kafka directory-->
 
+  ## NOTE: Copy Kafka Directory to Local Machine and back to `3 Slaves`
+  <!-- After the Copy to All Slaves, apply the tar command above and the others -->
+  ```bash 
+    docker cp master:/opt/kafka_2.13-4.2.2.tgz .
 
-# Step 2: Configure the `Master Node` (Dedicated Controller)
+    # Copy the file to all Slaves
+    "slave1", "slave2", "slave3" | ForEach-Object {
+      docker cp .\kafka_2.13-4.2.2.tgz "${_}:/opt"
+    }
+
+  ```
+
+# Step 2: On the `Master Node`
   <!-- 
   Instead of editing the old server.properties, KRaft configurations are stored in the /opt/kafka/config/kraft/ folder. 
   -->
-  On the master node, open `/opt/kafka/config/kraft/controller.properties` and ensure the following properties are configured:
+  open `/opt/kafka/config/kraft/controller.properties` and ensure the following properties are configured:
 
   mkdir -p /opt/kafka/config/kraft
   nano /opt/kafka/config/kraft/controller.properties
 
   ```bash
-  # The role of this server. It is strictly a controller.
-  process.roles=controller
-  node.id=1
-  # The quorum voters map. ID 1 is our master node.
-  controller.quorum.voters=1@master:9093
-  # Add Controller listener name
-  controller.listener.names=CONTROLLER
-  # The port the controller listening socket binds to
-  listeners=CONTROLLER://master:9093
+# The role of this server. It is strictly a controller.
+process.roles=controller
+node.id=1
+# The quorum voters map. ID 1 is our master node.
+controller.quorum.voters=1@master:9093
+# Add Controller listener name
+controller.listener.names=CONTROLLER
+# The port the controller listening socket binds to
+listeners=CONTROLLER://master:9093
 
-  # Log directories for metadata
-  log.dirs=/var/log/kafka-logs
+# Log directories for metadata
+log.dirs=/var/log/kafka-logs
+
+# Add Unique Cluster Id to the Whole Cluster
+CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
   ```
 
-# Step 3: Configure the `3 Slave Nodes` (Dedicated Brokers)
+# Step 4: Configure the `3 Slave Nodes` (Dedicated Brokers)
   On each slave node, you will modify `/opt/kafka/config/kraft/broker.properties`. 
   Every slave needs a unique node.id
 
@@ -439,35 +489,45 @@ In the 1-master, 3-slave Hadoop topology, the standard way to architect this wit
 
   ## ON *Slave 1*
   ```bash
-  process.roles=broker
-  node.id=2
-  controller.listener.names=CONTROLLER
-  controller.quorum.voters=1@master:9093
-  listeners=PLAINTEXT://slave1:9092
-  advertised.listeners=PLAINTEXT://slave1:9092
-  log.dirs=/var/log/kafka-logs
+process.roles=broker
+node.id=2
+controller.listener.names=CONTROLLER
+controller.quorum.voters=1@master:9093
+listeners=PLAINTEXT://slave1:9092
+advertised.listeners=PLAINTEXT://slave1:9092
+log.dirs=/var/log/kafka-logs
+
+# Add Unique Cluster Id to the Whole Cluster
+CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
   ```
 
   ## ON *Slave 2*
   ```bash
-  process.roles=broker
-  node.id=3
-  controller.listener.names=CONTROLLER
-  controller.quorum.voters=1@master:9093
-  listeners=PLAINTEXT://slave2:9092
-  advertised.listeners=PLAINTEXT://slave2:9092
-  log.dirs=/var/log/kafka-logs
+process.roles=broker
+node.id=3
+controller.listener.names=CONTROLLER
+controller.quorum.voters=1@master:9093
+listeners=PLAINTEXT://slave2:9092
+advertised.listeners=PLAINTEXT://slave2:9092
+log.dirs=/var/log/kafka-logs
+
+# Add Unique Cluster Id to the Whole Cluster
+CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+
   ```
 
   ## ON *Slave 3*
   ```bash
-  process.roles=broker
-  node.id=4
-  controller.listener.names=CONTROLLER
-  controller.quorum.voters=1@master:9093
-  listeners=PLAINTEXT://slave3:9092
-  advertised.listeners=PLAINTEXT://slave3:9092
-  log.dirs=/var/log/kafka-logs
+process.roles=broker
+node.id=4
+controller.listener.names=CONTROLLER
+controller.quorum.voters=1@master:9093
+listeners=PLAINTEXT://slave3:9092
+advertised.listeners=PLAINTEXT://slave3:9092
+log.dirs=/var/log/kafka-logs
+
+# Add Unique Cluster Id to the Whole Cluster
+CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
   ```
 
 
@@ -489,16 +549,73 @@ KRaft requires all participating nodes to be formatted with a matching, unique C
     /opt/kafka/bin/kafka-storage.sh format -t <YOUR_GENERATED_UUID> -c /opt/kafka/config/kraft/broker.properties
 
 
+# step 5: Install java21 alongside java8 without affecting Hadoop nodes:
+<!-- Kafka uses java-21, hadoop uses java-8, so install java-21 and make it islolated to kafka -->
 
-# Step 5: Start the Cluster
+1. Install Java 21
+```bash
+  apt-get update
+  apt-get install -y openjdk-21-jdk
+  ls -l /usr/lib/jvm/ # Indentify both java installations
+```
+
+2. Configure Kafka to use Java 21
+  2.1 Create this file 
+    nano /opt/kafka/bin/kafka-with-java21
+
+  2.2: Add
+  ```bash
+    #!/bin/bash
+    export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+    export PATH=$JAVA_HOME/bin:$PATH
+    exec "$@"
+  ```
+  
+  2.3: Make it executable: 
+    chmod +x /opt/kafka/bin/kafka-with-java21
+
+
+
+
+# Step 6: Start the Cluster
   ## 1. Start the Controller on the `master node`:
-    /opt/kafka/bin/kafka-server-start.sh -daemon /opt/kafka/config/kraft/controller.properties
-
+  <!-- /opt/kafka/bin/kafka-server-start.sh -daemon /opt/kafka/config/kraft/controller.properties -->
+  ```bash
+    /opt/kafka/bin/kafka-with-java21 \
+    /opt/kafka/bin/kafka-server-start.sh \
+    /opt/kafka/config/server.properties
+  ```
   ## 2. Start the Brokers on `All Slaves`
-    /opt/kafka/bin/kafka-server-start.sh -daemon /opt/kafka/config/kraft/broker.properties
-
+  <!-- /opt/kafka/bin/kafka-server-start.sh -daemon /opt/kafka/config/kraft/broker.properties -->
+   ```bash
+    /opt/kafka/bin/kafka-with-java21 \
+    /opt/kafka/bin/kafka-server-start.sh \
+    /opt/kafka/config/server.properties
+  ```
 
 *NOTE:* To verify execution, typing `jps` on any node should show the `Kafka` process running
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,0 +1,91 @@
+name: kafka
+
+x-kafka-common: &kafka-common
+  image: confluentinc/cp-kafka:7.8.3
+  restart: unless-stopped
+  networks:
+    - hadoop_cluster_net
+
+x-cluster-env: &cluster-env
+  CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+  KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-controller:9093
+  KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+  KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+  KAFKA_LOG_DIRS: /var/lib/kafka/data
+  KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+  KAFKA_MIN_INSYNC_REPLICAS: 2
+
+services:
+  kafka-controller:
+    <<: *kafka-common
+    container_name: kafka-controller
+    environment:
+      <<: *cluster-env
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: controller
+      KAFKA_LISTENERS: CONTROLLER://0.0.0.0:9093
+    volumes:
+      - controller-data:/var/lib/kafka/data
+
+  kafka-broker-1:
+    <<: *kafka-common
+    container_name: kafka-broker-1
+    depends_on:
+      - kafka-controller
+    ports:
+      - "29092:29092"
+    environment:
+      <<: *cluster-env
+      KAFKA_NODE_ID: 2
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-broker-1:9092,EXTERNAL://localhost:29092
+    volumes:
+      - broker-1-data:/var/lib/kafka/data
+
+  kafka-broker-2:
+    <<: *kafka-common
+    container_name: kafka-broker-2
+    depends_on:
+      - kafka-controller
+    ports:
+      - "29093:29092"
+    environment:
+      <<: *cluster-env
+      KAFKA_NODE_ID: 3
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-broker-2:9092,EXTERNAL://localhost:29093
+    volumes:
+      - broker-2-data:/var/lib/kafka/data
+
+  kafka-broker-3:
+    <<: *kafka-common
+    container_name: kafka-broker-3
+    depends_on:
+      - kafka-controller
+    ports:
+      - "29094:29092"
+    environment:
+      <<: *cluster-env
+      KAFKA_NODE_ID: 4
+      KAFKA_PROCESS_ROLES: broker
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-broker-3:9092,EXTERNAL://localhost:29094
+    volumes:
+      - broker-3-data:/var/lib/kafka/data
+
+volumes:
+  controller-data:
+  broker-1-data:
+  broker-2-data:
+  broker-3-data:
+
+networks:
+  hadoop_cluster_net:
+    name: hadoop_cluster_hadoop_network_2
+    external: true

@@ -1,0 +1,33 @@
+name: airflow
+
+services:
+  airflow:
+    build: .
+    image: apache/airflow:2.10.5-python3.8 #airflow-remote:2.10.5
+    container_name: airflow
+    command: standalone
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    volumes:
+      # Local Directory
+      - ./airflow-data:/opt/airflow
+
+      # # Docker Diretory
+      # - airflow-data:/opt/airflow
+
+    networks:
+      - hadoop_cluster_net
+    restart: unless-stopped
+
+volumes: 
+  airflow-data:
+
+networks:
+  hadoop_cluster_net:
+    external: true
+    name: hadoop_cluster_hadoop_network_2
