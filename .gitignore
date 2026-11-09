@@ -1,8 +1,13 @@
 
 hadoop-3.3.6.tar.gz
+*.tar.gz
+*.tgz
+
 
 Assets/Docker*
 Assets/spark
 Assets/Example/Hive*
 
 Airflow Installation/airflow-data
+
+
